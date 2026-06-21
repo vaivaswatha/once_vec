@@ -14,28 +14,15 @@ and only depends on `alloc`.
 - Push without a mutable reference
 - Immutable once inserted
 - Chunked allocation in powers of two
-- Efficient access and insertion: `get` is O(1); `push` is amortized O(1)
-  (occasional chunk allocation/initialization cost).
-  The accesses are not as fast as a `Vec<T>` because of the chunked layout
-  (extra index computation), but are still O(1).
-- Safe implementation
+- Efficient access and insertion:
+  - `get` is O(1), but not as fast as a `Vec`, due to additional index
+     computation.
+  - `push` is amortized O(1) - likely faster than `Vec` because no
+     data needs to be moved on reallocation.
+- No `unsafe` code
 - `no_std` compatible
-
-## Behavior
-
-`OnceVec<T, N>` stores elements in chunks of size `1, 2, 4, ...`,
-up to a maximum length of `2^N - 1`.
-
-- `push` appends a value and returns its index (does not require a mutable reference).
-- `get` returns a shared reference to a value by index.
-- `iter` yields elements in insertion order.
-- `clear` removes all elements and allows reuse of the same container.
-
-Once a value has been pushed, it cannot be replaced or removed individually.
-If you need interior mutation, store a type with its own interior mutability.
-
-`OnceVec` does not implement `Sync`: it uses `core::cell` primitives internally,
-so shared concurrent access from multiple threads is not supported.
+- Does not implement `Sync`: it uses `core::cell` primitives internally,
+  so shared concurrent access from multiple threads is not supported.
 
 ## Example
 
@@ -56,6 +43,29 @@ assert_eq!(values.get(1), Some(&"beta"));
 let collected: Vec<_> = values.iter().copied().collect();
 assert_eq!(collected, vec!["alpha", "beta"]);
 ```
+
+## Internals
+
+`OnceVec` keeps a fixed base table of chunk pointers. Each row points to a lazily
+allocated chunk whose size doubles as you go down.
+
+Example state (len = 10):
+
+```
++-----------------------------+--------------------------------------------+
+| base table row -> chunk     | chunk contents                             |
++-----------------------------+--------------------------------------------+
+| row / chunk 0 (size 1)      | range [0..=0]   : [0]                      |
+| row / chunk 1 (size 2)      | range [1..=2]   : [1][2]                   |
+| row / chunk 2 (size 4)      | range [3..=6]   : [3][4][5][6]             |
+| row / chunk 3 (size 8)      | range [7..=14]  : [7][8][9][.][.][.][.][.] |
+| row / chunk 4 (size 16)     | range [15..=30] : not allocated yet        |
+| ...                         | ...                                        |
++-----------------------------+--------------------------------------------+
+```
+
+`[n]` means initialized `OnceCell<T>` storing global index `n`.
+`[.]` means allocated but uninitialized `OnceCell<T>`.
 
 ## Capacity
 
@@ -112,10 +122,75 @@ Run it with:
 cargo bench --bench comparison
 ```
 
-The results are available in target/criterion/comparison and can be viewed with
-`cargo bench --bench comparison -- --save-baseline` to save the results as
+The results are available in `target/criterion/report/index.html`.
+
+If you make changes to the code and want to compare the new results with a previous run,
+you can use Criterion's baseline feature:
+
+- `cargo bench --bench comparison -- --save-baseline name` to save the results as
 a baseline for future comparisons.
+- `cargo bench --bench comparison -- --baseline name` to compare the results
+against a previously saved baseline.
 
 Note: `elsa::FrozenVec` only exposes stable references for `StableDeref` items,
 so its native-mode benchmark stores `Box<usize>` while the other native-mode
 benchmarks store plain `usize` values.
+
+### Results
+
+These are the results on my machine. Values are mean time per benchmark iteration
+in nanoseconds (lower is better).
+
+#### append/native (ns)
+
+| crate | 64 | 1024 | 16384 |
+| --- | ---: | ---: | ---: |
+| once_vec | 279.19 | 3107.10 | 44100.68 |
+| append_only_vec | 1003.53 | 15740.27 | 251342.79 |
+| appendlist | 255.77 | 3264.62 | 46947.33 |
+| elsa_frozen_vec | 1750.05 | 25944.63 | 629079.94 |
+
+#### append/boxed (ns)
+
+| crate | 64 | 1024 | 16384 |
+| --- | ---: | ---: | ---: |
+| once_vec | 2124.13 | 41473.55 | 662905.74 |
+| append_only_vec | 2671.61 | 53226.23 | 887147.03 |
+| appendlist | 1819.71 | 39531.16 | 661521.36 |
+| elsa_frozen_vec | 1832.50 | 26161.87 | 623053.12 |
+
+#### get/native (ns)
+
+| crate | 64 | 1024 | 16384 |
+| --- | ---: | ---: | ---: |
+| once_vec | 113.23 | 1849.50 | 35674.28 |
+| append_only_vec | 83.97 | 1345.67 | 25180.09 |
+| appendlist | 103.05 | 1653.38 | 30620.56 |
+| elsa_frozen_vec | 47.82 | 928.57 | 22775.42 |
+
+#### get/boxed (ns)
+
+| crate | 64 | 1024 | 16384 |
+| --- | ---: | ---: | ---: |
+| once_vec | 138.27 | 2125.34 | 43149.28 |
+| append_only_vec | 91.96 | 1760.47 | 39742.44 |
+| appendlist | 117.51 | 2142.03 | 46130.42 |
+| elsa_frozen_vec | 47.20 | 934.95 | 22480.88 |
+
+#### iter/native (ns)
+
+| crate | 64 | 1024 | 16384 |
+| --- | ---: | ---: | ---: |
+| once_vec | 109.20 | 1645.27 | 26220.76 |
+| append_only_vec | 94.64 | 1413.04 | 22636.80 |
+| appendlist | 101.55 | 1646.10 | 26618.18 |
+| elsa_frozen_vec | 15.21 | 495.29 | 8650.09 |
+
+#### iter/boxed (ns)
+
+| crate | 64 | 1024 | 16384 |
+| --- | ---: | ---: | ---: |
+| once_vec | 103.46 | 1651.88 | 26293.84 |
+| append_only_vec | 94.99 | 1418.51 | 22838.41 |
+| appendlist | 89.26 | 1557.41 | 23518.99 |
+| elsa_frozen_vec | 15.10 | 500.53 | 8679.69 |
