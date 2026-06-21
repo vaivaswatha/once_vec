@@ -116,8 +116,7 @@ impl<T, const N: usize> Index<usize> for OnceVec<T, N> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.get(index)
-            .expect("index out of bounds")
+        self.get(index).expect("index out of bounds")
     }
 }
 
