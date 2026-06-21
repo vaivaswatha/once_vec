@@ -14,6 +14,10 @@ and only depends on `alloc`.
 - Push without a mutable reference
 - Immutable once inserted
 - Chunked allocation in powers of two
+- Efficient access and insertion: `get` is O(1); `push` is amortized O(1)
+  (occasional chunk allocation/initialization cost).
+  The accesses are not as fast as a `Vec<T>` because of the chunked layout
+  (extra index computation), but are still O(1).
 - Safe implementation
 - `no_std` compatible
 
@@ -56,3 +60,30 @@ The default chunk count is `32`, which gives a theoretical maximum length of `2^
 elements on 32-bit and larger targets, subject to available memory.
 
 You can choose a smaller `N` when constructing the type if you want a lower maximum capacity.
+
+## Comparison
+
+### vs [`elsa::FrozenVec`](https://github.com/Manishearth/elsa)
+
+- `FrozenVec` uses `stable_deref_trait::StableDeref` for the API that returns
+  stable references to inserted items (`&T::Target`), which typically means
+  storing values behind indirection (for example `Box<T>`, `Arc<T>`, etc.).
+- Implementation includes `unsafe` internally (for example via `UnsafeCell`
+  access patterns in `src/vec.rs`).
+- `once_vec` is fully safe Rust and stores plain `T` directly.
+
+### vs [`append-only-vec`](https://github.com/droundy/append-only-vec)
+
+- Similar high-level approach (chunked growth with O(1) indexing and
+  amortized O(1) append), including non-`&mut` append semantics.
+- Implementation relies on `unsafe` (raw pointers, `UnsafeCell`, manual
+  allocation/deallocation) in `src/lib.rs`.
+- `once_vec` aims for the same usage style without `unsafe`.
+
+### vs [`appendlist`](https://github.com/danieldulaney/appendlist/blob/master/src/appendlist.rs)
+
+- Uses a `Vec<Vec<T>>` chunk layout and explicitly documents an unsafe-internal
+  implementation strategy (for example with `UnsafeCell<Vec<Vec<T>>>`).
+- Also provides O(1) indexing and append behavior with chunked growth.
+- `once_vec` provides a similar append-only ergonomics with a fully safe,
+  `OnceCell`-based implementation.
