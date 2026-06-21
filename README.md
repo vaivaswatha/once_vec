@@ -90,3 +90,32 @@ You can choose a smaller `N` when constructing the type if you want a lower maxi
 - Also provides O(1) indexing and append behavior with chunked growth.
 - `once_vec` provides a similar append-only ergonomics with a fully safe,
   `OnceCell`-based implementation.
+
+## Benchmarks
+
+The repository includes a Criterion benchmark that compares `once_vec` with the
+three crates listed above across three workloads:
+
+- append from empty
+- indexed reads over a populated collection
+- full iteration over a populated collection
+
+It reports two comparison modes:
+
+- native storage, where each crate uses its most direct comparable element type
+- boxed storage, where all four crates store `Box<usize>` for a more direct
+  apples-to-apples comparison with `elsa::FrozenVec`
+
+Run it with:
+
+```bash
+cargo bench --bench comparison
+```
+
+The results are available in target/criterion/comparison and can be viewed with
+`cargo bench --bench comparison -- --save-baseline` to save the results as
+a baseline for future comparisons.
+
+Note: `elsa::FrozenVec` only exposes stable references for `StableDeref` items,
+so its native-mode benchmark stores `Box<usize>` while the other native-mode
+benchmarks store plain `usize` values.

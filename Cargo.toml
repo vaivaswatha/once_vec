@@ -9,3 +9,13 @@ keywords = ["no-std", "oncecell", "vector"]
 description = "Safe grow-only vector based on OnceCell"
 
 [dependencies]
+
+[dev-dependencies]
+append-only-vec = "0.1.8"
+appendlist = "1.4.0"
+criterion = "0.5.1"
+elsa = "1.11.2"
+
+[[bench]]
+name = "comparison"
+harness = false
