@@ -34,6 +34,9 @@ up to a maximum length of `2^N - 1`.
 Once a value has been pushed, it cannot be replaced or removed individually.
 If you need interior mutation, store a type with its own interior mutability.
 
+`OnceVec` does not implement `Sync`: it uses `core::cell` primitives internally,
+so shared concurrent access from multiple threads is not supported.
+
 ## Example
 
 ```rust

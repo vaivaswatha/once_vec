@@ -8,6 +8,7 @@
 //! * Memory allocation happens in steps of powers of two.
 //! * The total size is limited `1 + 2 + 4 + ... + 2^(N-1) = 2^N - 1`,
 //!   where `N` is the number of chunks, which is a const generic parameter.
+//! * It does not implement `Sync`; shared concurrent access is not supported.
 //! * Written entirely in safe rust.
 
 #![no_std]
@@ -36,7 +37,7 @@ impl<T, const N: usize> Default for OnceVec<T, N> {
 
 impl<T, const N: usize> OnceVec<T, N> {
     /// The maximum length of the OnceVec, determined by the number of chunks `N`.
-    const fn max_len() -> usize {
+    pub const fn max_len() -> usize {
         if N >= usize::BITS as usize {
             usize::MAX
         } else {
