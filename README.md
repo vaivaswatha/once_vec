@@ -1,5 +1,7 @@
 # once_vec
 
+[![CI](https://github.com/vaivaswatha/once_vec/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/vaivaswatha/once_vec/actions/workflows/ci.yml)
+
 `once_vec` provides a safe grow-only vector backed by `OnceCell`.
 
 It is designed for cases where you want to append values without taking `&mut self`,
